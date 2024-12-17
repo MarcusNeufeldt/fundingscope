@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { TokenSelector } from "./TokenSelector";
-import { TokenInfo, fetchTokens, fetchTokenPrice } from "@/utils/binanceApi";
+import { TokenInfo, fetchTokens, fetchTokenPrice, fetchFundingRate } from "@/utils/binanceApi";
 import { useQuery } from "@tanstack/react-query";
 
 interface InputFormProps {
@@ -16,18 +16,20 @@ export interface TradingParams {
   leverage: number;
   targetPrice: number;
   timeHorizon: number;
-  fundingRate: number;
+  fundingRate: number;  // This will now be per 8-hour rate
   selectedToken: string;
+  currentPrice: number;
 }
 
 export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
   const [params, setParams] = React.useState<TradingParams>({
     initialInvestment: 1000,
     leverage: 2,
-    targetPrice: 100,
+    targetPrice: 0,
     timeHorizon: 30,
-    fundingRate: 0.01,
+    fundingRate: 0.01,  // Default 0.01% per 8 hours
     selectedToken: "BTCUSDT",
+    currentPrice: 0,
   });
 
   const { data: tokens, isLoading: isLoadingTokens } = useQuery({
@@ -42,18 +44,58 @@ export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
     refetchInterval: 10000, // Refresh every 10 seconds
   });
 
+  const { data: fundingRate } = useQuery({
+    queryKey: ["fundingRate", params.selectedToken],
+    queryFn: () => fetchFundingRate(params.selectedToken),
+    enabled: !!params.selectedToken,
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
   const handleChange = (field: keyof TradingParams, value: number | string) => {
+    if (typeof value === 'number' && isNaN(value)) {
+      return; // Don't update if value is NaN
+    }
     const newParams = { ...params, [field]: value };
     setParams(newParams);
     onParamsChange(newParams);
   };
 
-  // Only update target price when token changes, not on every price update
   React.useEffect(() => {
-    if (currentPrice && params.selectedToken) {
-      handleChange("targetPrice", parseFloat(currentPrice.toFixed(8)));
+    if (currentPrice) {
+      const newParams = { 
+        ...params, 
+        currentPrice,
+        targetPrice: params.targetPrice === 0 || isNaN(params.targetPrice) ? currentPrice : params.targetPrice 
+      };
+      setParams(newParams);
+      onParamsChange(newParams);
     }
-  }, [params.selectedToken]); // Only depend on selectedToken, not currentPrice
+  }, [currentPrice]);
+
+  React.useEffect(() => {
+    if (fundingRate !== undefined && !isNaN(fundingRate)) {
+      const newParams = {
+        ...params,
+        fundingRate: fundingRate
+      };
+      setParams(newParams);
+      onParamsChange(newParams);
+    }
+  }, [fundingRate]);
+
+  // Update target price and reset funding rate when token changes
+  React.useEffect(() => {
+    if (currentPrice) {
+      const newParams = {
+        ...params,
+        currentPrice,
+        targetPrice: currentPrice,
+        fundingRate: 0.01 // Reset to default until new rate is fetched
+      };
+      setParams(newParams);
+      onParamsChange(newParams);
+    }
+  }, [params.selectedToken]);
 
   return (
     <Card className="p-6 space-y-6">
@@ -66,6 +108,11 @@ export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
             onTokenSelect={(token) => handleChange("selectedToken", token)}
             isLoading={isLoadingTokens}
           />
+          {currentPrice && !isNaN(currentPrice) && (
+            <div className="text-sm text-muted-foreground mt-2">
+              Current price: ${Number(currentPrice).toFixed(8)}
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -73,11 +120,14 @@ export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
           <Input
             id="investment"
             type="number"
-            value={params.initialInvestment}
+            value={params.initialInvestment || ''}
             onChange={(e) => handleChange("initialInvestment", Number(e.target.value))}
-            min={100}
+            min={1}
             step={100}
           />
+          <div className="text-sm text-muted-foreground">
+            Position Size: ${((params.initialInvestment || 0) * (params.leverage || 1)).toFixed(2)}
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -85,15 +135,15 @@ export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
           <div className="pt-2">
             <Slider
               id="leverage"
-              value={[params.leverage]}
+              value={[params.leverage || 1]}
               onValueChange={([value]) => handleChange("leverage", value)}
               min={1}
-              max={10}
+              max={50}
               step={1}
             />
           </div>
           <div className="text-sm text-muted-foreground text-right">
-            {params.leverage}x
+            {params.leverage || 1}x
           </div>
         </div>
 
@@ -102,14 +152,14 @@ export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
           <Input
             id="targetPrice"
             type="number"
-            value={params.targetPrice}
+            value={params.targetPrice || ''}
             onChange={(e) => handleChange("targetPrice", parseFloat(e.target.value))}
             min={0}
             step="any"
           />
-          {currentPrice && (
+          {currentPrice && !isNaN(currentPrice) && params.targetPrice && !isNaN(params.targetPrice) && (
             <div className="text-sm text-muted-foreground">
-              Current price: ${currentPrice.toFixed(8)}
+              Expected Return: {((params.targetPrice - currentPrice) / currentPrice * 100).toFixed(2)}%
             </div>
           )}
         </div>
@@ -119,25 +169,35 @@ export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
           <Input
             id="timeHorizon"
             type="number"
-            value={params.timeHorizon}
+            value={params.timeHorizon || ''}
             onChange={(e) => handleChange("timeHorizon", Number(e.target.value))}
             min={1}
             max={365}
             step={1}
           />
+          <div className="text-sm text-muted-foreground">
+            Funding Payments: {((params.timeHorizon || 0) * 3).toFixed(0)} times
+          </div>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="fundingRate">Daily Funding Rate (%)</Label>
+          <Label htmlFor="fundingRate">Current Funding Rate (% per 8 hours)</Label>
           <Input
             id="fundingRate"
             type="number"
-            value={params.fundingRate}
+            value={params.fundingRate || ''}
             onChange={(e) => handleChange("fundingRate", Number(e.target.value))}
             min={-1}
             max={1}
             step={0.001}
+            disabled={!!fundingRate && !isNaN(fundingRate)}
           />
+          {!isNaN(params.fundingRate) && (
+            <div className="text-sm text-muted-foreground">
+              Daily Rate: {((params.fundingRate || 0) * 3).toFixed(3)}% | 
+              Annual Rate: {((params.fundingRate || 0) * 3 * 365).toFixed(2)}%
+            </div>
+          )}
         </div>
       </div>
     </Card>
