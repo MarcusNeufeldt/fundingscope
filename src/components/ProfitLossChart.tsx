@@ -20,12 +20,21 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = ({ params }) => {
     const { initialInvestment, leverage, targetPrice, timeHorizon, fundingRate } = params;
     const positionSize = initialInvestment * leverage;
     const currentPrice = 100; // Base price for percentage calculations
-    const priceChange = ((targetPrice - currentPrice) / currentPrice) * 100; // Price change in percentage
-    const dailyPriceChangePercent = priceChange / timeHorizon;
+    
+    // Calculate the total expected return percentage
+    const expectedReturnPerc = ((targetPrice - currentPrice) / currentPrice);
+    // Calculate daily return percentage (compound)
+    const dailyReturnPerc = Math.pow(1 + expectedReturnPerc, 1/timeHorizon) - 1;
     
     return Array.from({ length: timeHorizon + 1 }, (_, day) => {
-      const priceAtDay = currentPrice * (1 + (dailyPriceChangePercent * day) / 100);
-      const pnlBeforeFunding = positionSize * ((priceAtDay - currentPrice) / currentPrice);
+      // Calculate price at this day using compound growth
+      const priceAtDay = currentPrice * Math.pow(1 + dailyReturnPerc, day);
+      
+      // Calculate PnL based on position size and price movement
+      const priceChangePerc = (priceAtDay - currentPrice) / currentPrice;
+      const pnlBeforeFunding = positionSize * priceChangePerc;
+      
+      // Calculate cumulative funding fees (daily rate * days * position size)
       const fundingFees = (positionSize * (fundingRate / 100) * day);
       const totalPnL = pnlBeforeFunding - fundingFees;
       
@@ -65,6 +74,7 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = ({ params }) => {
               stroke="#10B981"
               strokeWidth={2}
               dot={false}
+              name="Profit/Loss"
             />
             <Line
               type="monotone"
@@ -72,6 +82,7 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = ({ params }) => {
               stroke="#EF4444"
               strokeWidth={2}
               dot={false}
+              name="Funding Fees"
             />
           </LineChart>
         </ResponsiveContainer>
