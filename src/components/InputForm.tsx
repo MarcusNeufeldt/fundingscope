@@ -51,7 +51,7 @@ export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
   // Only update target price when token changes, not on every price update
   React.useEffect(() => {
     if (currentPrice && params.selectedToken) {
-      handleChange("targetPrice", currentPrice);
+      handleChange("targetPrice", parseFloat(currentPrice.toFixed(8)));
     }
   }, [params.selectedToken]); // Only depend on selectedToken, not currentPrice
 
@@ -103,13 +103,13 @@ export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
             id="targetPrice"
             type="number"
             value={params.targetPrice}
-            onChange={(e) => handleChange("targetPrice", Number(e.target.value))}
+            onChange={(e) => handleChange("targetPrice", parseFloat(e.target.value))}
             min={0}
-            step={1}
+            step="any"
           />
           {currentPrice && (
             <div className="text-sm text-muted-foreground">
-              Current price: ${currentPrice.toFixed(2)}
+              Current price: ${currentPrice.toFixed(8)}
             </div>
           )}
         </div>

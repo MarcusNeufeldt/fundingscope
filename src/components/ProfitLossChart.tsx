@@ -19,12 +19,14 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = ({ params }) => {
   const data = React.useMemo(() => {
     const { initialInvestment, leverage, targetPrice, timeHorizon, fundingRate } = params;
     const positionSize = initialInvestment * leverage;
-    const dailyPriceIncrease = (targetPrice - 100) / timeHorizon;
+    const currentPrice = 100; // Base price for percentage calculations
+    const priceChange = ((targetPrice - currentPrice) / currentPrice) * 100; // Price change in percentage
+    const dailyPriceChangePercent = priceChange / timeHorizon;
     
     return Array.from({ length: timeHorizon + 1 }, (_, day) => {
-      const price = 100 + dailyPriceIncrease * day;
-      const pnlBeforeFunding = positionSize * ((price - 100) / 100);
-      const fundingFees = (positionSize * fundingRate * day) / 100;
+      const priceAtDay = currentPrice * (1 + (dailyPriceChangePercent * day) / 100);
+      const pnlBeforeFunding = positionSize * ((priceAtDay - currentPrice) / currentPrice);
+      const fundingFees = (positionSize * (fundingRate / 100) * day);
       const totalPnL = pnlBeforeFunding - fundingFees;
       
       return {
