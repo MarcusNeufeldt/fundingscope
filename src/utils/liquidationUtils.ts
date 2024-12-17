@@ -42,11 +42,12 @@ export const calculateLiquidationDetails = (
 
     // Calculate margin requirements
     const initialMarginRequired = positionSize / leverage;
-    const maintenanceMarginRequired = initialMarginRequired * 0.5; // 50% of initial margin
+    // No maintenance margin required for 1x leverage
+    const maintenanceMarginRequired = leverage === 1 ? 0 : initialMarginRequired * 0.5;
     console.log(`Initial Margin Required: $${initialMarginRequired.toFixed(4)}
     Calculation: Position Size ($${positionSize}) / Leverage (${leverage})
     Maintenance Margin Required: $${maintenanceMarginRequired.toFixed(4)}
-    Calculation: Initial Margin ($${initialMarginRequired.toFixed(4)}) × 0.5`);
+    Calculation: ${leverage === 1 ? 'No maintenance margin for 1x leverage' : `Initial Margin ($${initialMarginRequired.toFixed(4)}) × 0.5`}`);
 
     console.log('=== End Liquidation Calculation ===\n');
 
