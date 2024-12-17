@@ -3,6 +3,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { TokenSelector } from "./TokenSelector";
+import { TokenInfo, fetchTokens, fetchTokenPrice } from "@/utils/binanceApi";
+import { useQuery } from "@tanstack/react-query";
 
 interface InputFormProps {
   onParamsChange: (params: TradingParams) => void;
@@ -14,6 +17,7 @@ export interface TradingParams {
   targetPrice: number;
   timeHorizon: number;
   fundingRate: number;
+  selectedToken: string;
 }
 
 export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
@@ -23,17 +27,46 @@ export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
     targetPrice: 100,
     timeHorizon: 30,
     fundingRate: 0.01,
+    selectedToken: "BTCUSDT",
   });
 
-  const handleChange = (field: keyof TradingParams, value: number) => {
+  const { data: tokens, isLoading: isLoadingTokens } = useQuery({
+    queryKey: ["tokens"],
+    queryFn: fetchTokens,
+  });
+
+  const { data: currentPrice } = useQuery({
+    queryKey: ["tokenPrice", params.selectedToken],
+    queryFn: () => fetchTokenPrice(params.selectedToken),
+    enabled: !!params.selectedToken,
+    refetchInterval: 10000, // Refresh every 10 seconds
+  });
+
+  const handleChange = (field: keyof TradingParams, value: number | string) => {
     const newParams = { ...params, [field]: value };
     setParams(newParams);
     onParamsChange(newParams);
   };
 
+  React.useEffect(() => {
+    if (currentPrice) {
+      handleChange("targetPrice", currentPrice);
+    }
+  }, [currentPrice]);
+
   return (
     <Card className="p-6 space-y-6">
       <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="token">Select Token</Label>
+          <TokenSelector
+            tokens={tokens || []}
+            selectedToken={params.selectedToken}
+            onTokenSelect={(token) => handleChange("selectedToken", token)}
+            isLoading={isLoadingTokens}
+          />
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="investment">Initial Investment (USD)</Label>
           <Input
@@ -73,6 +106,11 @@ export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
             min={0}
             step={1}
           />
+          {currentPrice && (
+            <div className="text-sm text-muted-foreground">
+              Current price: ${currentPrice.toFixed(2)}
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
