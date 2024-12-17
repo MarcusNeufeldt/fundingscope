@@ -21,6 +21,11 @@ export const TokenSelector: React.FC<TokenSelectorProps> = ({
   onTokenSelect,
   isLoading = false,
 }) => {
+  // Sort tokens alphabetically by baseAsset
+  const sortedTokens = [...tokens].sort((a, b) => 
+    a.baseAsset.localeCompare(b.baseAsset)
+  );
+
   return (
     <div className="w-full">
       <Select
@@ -31,8 +36,8 @@ export const TokenSelector: React.FC<TokenSelectorProps> = ({
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Select a token" />
         </SelectTrigger>
-        <SelectContent>
-          {tokens.map((token) => (
+        <SelectContent className="bg-background border-border max-h-[300px] z-50">
+          {sortedTokens.map((token) => (
             <SelectItem key={token.symbol} value={token.symbol}>
               {token.baseAsset}/USDT
             </SelectItem>

@@ -48,11 +48,12 @@ export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
     onParamsChange(newParams);
   };
 
+  // Only update target price when token changes, not on every price update
   React.useEffect(() => {
-    if (currentPrice) {
+    if (currentPrice && params.selectedToken) {
       handleChange("targetPrice", currentPrice);
     }
-  }, [currentPrice]);
+  }, [params.selectedToken]); // Only depend on selectedToken, not currentPrice
 
   return (
     <Card className="p-6 space-y-6">
