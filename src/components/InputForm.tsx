@@ -85,17 +85,39 @@ export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
 
   // Update target price and reset funding rate when token changes
   React.useEffect(() => {
+    // Reset target price immediately when token changes
+    const newParams = {
+      ...params,
+      targetPrice: 0, // Reset to ensure it updates with new current price
+      fundingRate: 0.01 // Reset to default until new rate is fetched
+    };
+    setParams(newParams);
+    onParamsChange(newParams);
+
+    // Update with current price when available
     if (currentPrice) {
+      const updatedParams = {
+        ...newParams,
+        currentPrice,
+        targetPrice: currentPrice,
+      };
+      setParams(updatedParams);
+      onParamsChange(updatedParams);
+    }
+  }, [params.selectedToken]);
+
+  // Update target price when current price changes and target is not set
+  React.useEffect(() => {
+    if (currentPrice && (params.targetPrice === 0 || isNaN(params.targetPrice))) {
       const newParams = {
         ...params,
         currentPrice,
-        targetPrice: currentPrice,
-        fundingRate: 0.01 // Reset to default until new rate is fetched
+        targetPrice: currentPrice
       };
       setParams(newParams);
       onParamsChange(newParams);
     }
-  }, [params.selectedToken]);
+  }, [currentPrice]);
 
   return (
     <Card className="p-6 space-y-6">
@@ -153,9 +175,21 @@ export const InputForm: React.FC<InputFormProps> = ({ onParamsChange }) => {
             id="targetPrice"
             type="number"
             value={params.targetPrice || ''}
-            onChange={(e) => handleChange("targetPrice", parseFloat(e.target.value))}
+            onChange={(e) => {
+              const value = e.target.value;
+              // Allow empty input
+              if (value === '') {
+                handleChange("targetPrice", currentPrice || 0);
+                return;
+              }
+              // Parse with high precision
+              const parsed = Number(value);
+              if (!isNaN(parsed)) {
+                handleChange("targetPrice", parsed);
+              }
+            }}
             min={0}
-            step="any"
+            step="0.00000001"
           />
           {currentPrice && !isNaN(currentPrice) && params.targetPrice && !isNaN(params.targetPrice) && (
             <div className="text-sm text-muted-foreground">
