@@ -22,6 +22,7 @@ interface ChartDataPoint {
   day: number;
   rawPnL: number;
   fundingFees: number;
+  fundingRate: number;
   totalPnL: number;
   price: number;
   pnlPercent: number;
@@ -166,6 +167,7 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
             day,
             rawPnL: -initialInvestment,
             fundingFees: initialInvestment, // Maximum loss is initial margin
+            fundingRate: 0,
             totalPnL: -initialInvestment,
             price: priceAtDay,
             pnlPercent: -100,
@@ -193,6 +195,7 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
         day,
         rawPnL: Number(rawPnL.toFixed(2)),
         fundingFees: Number(fundingImpact.fundingFees.toFixed(2)),
+        fundingRate: Number(modifiedFundingRate.toFixed(8)),
         totalPnL: Number(totalPnL.toFixed(2)),
         price: Number(priceAtDay.toFixed(8)),
         pnlPercent: Number(pnlPercent.toFixed(2)),
@@ -213,6 +216,7 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
     const rawPnL = pnl.value as number;
     const fundingImpact = funding.value as number;
     const riskLevel = risk.value as number;
+    const fundingRate = pnl.payload.fundingRate as number;
 
     const getStatusColor = (risk: number) => {
       if (risk >= 90) return 'text-red-500';
