@@ -102,12 +102,17 @@ export const calculateFundingImpact = (
   console.log(`\nMargin Buffer: $${marginBuffer.toFixed(4)}
   Calculation: Effective Margin ($${effectiveMargin.toFixed(4)}) - Maintenance Margin ($${liquidationDetails.maintenanceMarginRequired.toFixed(4)})`);
 
-  const liquidationRisk = isLiquidated ? 100 : Math.max(0, Math.min(100, 
-    (1 - (marginBuffer / initialMargin)) * 100
-  ));
+  // For 1x leverage, base risk purely on remaining margin percentage
+  const liquidationRisk = isLiquidated ? 100 : leverage === 1 
+    ? Math.max(0, Math.min(100, ((initialMargin - effectiveMargin) / initialMargin) * 100))
+    : Math.max(0, Math.min(100, (1 - (marginBuffer / initialMargin)) * 100));
   
   console.log(`\nLiquidation Risk: ${liquidationRisk.toFixed(2)}%
-  Calculation: ${isLiquidated ? 'Position Liquidated' : `max(0, min(100, (1 - (Margin Buffer ($${marginBuffer.toFixed(4)}) / Initial Margin ($${initialMargin}))) × 100))`}`);
+  Calculation: ${isLiquidated 
+    ? 'Position Liquidated' 
+    : leverage === 1
+      ? `Remaining margin percentage: ((Initial Margin ($${initialMargin}) - Effective Margin ($${effectiveMargin.toFixed(4)})) / Initial Margin) × 100`
+      : `max(0, min(100, (1 - (Margin Buffer ($${marginBuffer.toFixed(4)}) / Initial Margin ($${initialMargin}))) × 100))`}`);
 
   console.log('\n=== End Calculation ===\n');
 
@@ -158,3 +163,17 @@ export const needsMarginTopUp = (
 === End Check ===\n`);
   return result;
 };
+
+// Calculate raw PnL without funding impact
+export function calculateRawPnL(
+  positionSize: number,
+  entryPrice: number,
+  currentPrice: number,
+  isLong: boolean = true
+): number {
+  const priceDifference = currentPrice - entryPrice;
+  const rawPnL = isLong ? 
+    (priceDifference / entryPrice) * positionSize :
+    (-priceDifference / entryPrice) * positionSize;
+  return rawPnL;
+}
