@@ -56,7 +56,7 @@ const scenarios: PriceScenario[] = [
   },
   {
     name: "Volatile Growth",
-    description: "Realistic market behavior with pullbacks. Price grows but with periodic corrections. Funding fluctuates based on market sentiment.",
+    description: "Realistic market behavior with pullbacks. Price grows but with periodic corrections. Funding fluctuates based on market sentiment..",
     priceModifier: (day, baseReturn) => 
       baseReturn * day * (1 + 0.3 * Math.sin(day / 10)),
     fundingModifier: (day, baseFunding) => 
