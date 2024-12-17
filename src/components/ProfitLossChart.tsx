@@ -12,7 +12,7 @@ import {
   ReferenceArea
 } from "recharts";
 import { TradingParams } from "./InputForm";
-import { calculateFundingImpact, FundingRateImpact } from "@/utils/fundingRateUtils";
+import { calculateFundingImpact, FundingRateImpact, calculateRawPnL } from "@/utils/fundingRateUtils";
 
 interface ProfitLossChartProps {
   params: TradingParams;
@@ -23,6 +23,7 @@ interface ChartDataPoint {
   rawPnL: number;
   fundingFees: number;
   fundingRate: number;
+  baseFundingRate: number;
   totalPnL: number;
   price: number;
   pnlPercent: number;
@@ -143,10 +144,11 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
       const totalFundingPeriods = day * fundingPeriodsPerDay;
       
       // Modified funding rate based on scenario
-      const modifiedFundingRate = scenario.fundingModifier(day, baseFundingRate, priceChangePerc);
+      const modifiedFundingRate = scenario.name === "Linear" 
+        ? baseFundingRate 
+        : scenario.fundingModifier(day, baseFundingRate, priceChangePerc);
 
       const positionSize = initialInvestment * leverage;
-      const rawPnL = positionSize * priceChangePerc;
       const fundingImpact = calculateFundingImpact(
         positionSize,
         modifiedFundingRate,
@@ -157,7 +159,12 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
         true  // assuming long position for now
       );
 
-      // If position is liquidated, calculate days until liquidation
+      const rawPnL = calculateRawPnL(positionSize, priceAtDay, currentPrice);
+      const totalPnL = rawPnL - Math.abs(fundingImpact.fundingFees);
+      const pnlPercent = (totalPnL / initialInvestment) * 100;
+      const effectiveMargin = initialInvestment + totalPnL;
+
+      // If position is liquidated, return liquidation state
       if (fundingImpact.isLiquidated && fundingImpact.liquidationPeriod !== undefined) {
         const daysUntilLiquidation = Math.floor(fundingImpact.liquidationPeriod / fundingPeriodsPerDay);
         
@@ -168,39 +175,39 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
             rawPnL: -initialInvestment,
             fundingFees: initialInvestment, // Maximum loss is initial margin
             fundingRate: 0,
+            baseFundingRate: 0,
             totalPnL: -initialInvestment,
             price: priceAtDay,
             pnlPercent: -100,
             liquidationRisk: 100,
             effectiveMargin: 0,
-            isLiquidated: true
+            isLiquidated: true,
+            marginWarning: 'danger'
           };
         }
       }
 
       // If not yet liquidated, calculate normal PnL
-      const effectivePositionSize = positionSize * (fundingImpact.effectiveMargin / initialInvestment);
-      const adjustedPriceChangePerc = (priceAtDay - currentPrice) / currentPrice;
-      const totalPnL = effectivePositionSize * adjustedPriceChangePerc - fundingImpact.fundingFees;
-      const pnlPercent = (totalPnL / initialInvestment * 100);
+      const liquidationRisk = fundingImpact.liquidationRisk;
 
       // Calculate margin warning level
       const marginWarningLevel = (): 'safe' | 'warning' | 'danger' => {
-        if (fundingImpact.liquidationRisk > 80) return 'danger';
-        if (fundingImpact.liquidationRisk > 60) return 'warning';
+        if (liquidationRisk > 80) return 'danger';
+        if (liquidationRisk > 60) return 'warning';
         return 'safe';
       };
 
       return {
         day,
         rawPnL: Number(rawPnL.toFixed(2)),
-        fundingFees: Number(fundingImpact.fundingFees.toFixed(2)),
-        fundingRate: Number(modifiedFundingRate.toFixed(8)),
+        fundingFees: -Number(fundingImpact.fundingFees.toFixed(2)), // Negative because it's a cost
+        fundingRate: modifiedFundingRate,
+        baseFundingRate: baseFundingRate,
         totalPnL: Number(totalPnL.toFixed(2)),
         price: Number(priceAtDay.toFixed(8)),
         pnlPercent: Number(pnlPercent.toFixed(2)),
-        liquidationRisk: Number(fundingImpact.liquidationRisk.toFixed(2)),
-        effectiveMargin: Number(fundingImpact.effectiveMargin.toFixed(2)),
+        liquidationRisk: Number(liquidationRisk.toFixed(2)),
+        effectiveMargin: Number(effectiveMargin.toFixed(2)),
         isLiquidated: false,
         marginWarning: marginWarningLevel()
       };
@@ -217,6 +224,7 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
     const fundingImpact = funding.value as number;
     const riskLevel = risk.value as number;
     const fundingRate = pnl.payload.fundingRate as number;
+    const baseFundingRate = pnl.payload.baseFundingRate as number;
 
     const getStatusColor = (risk: number) => {
       if (risk >= 90) return 'text-red-500';
@@ -245,8 +253,14 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
           <div className="font-medium text-indigo-500">-${Math.abs(fundingImpact).toLocaleString()}</div>
           <div className="text-muted-foreground">Net PnL:</div>
           <div className="font-medium">${(rawPnL - Math.abs(fundingImpact)).toLocaleString()}</div>
-          <div className="text-muted-foreground">APR:</div>
-          <div className="font-medium">{(fundingRate * 365 * 100).toFixed(2)}%</div>
+          <div className="text-muted-foreground">Current Funding Rate (8h):</div>
+          <div className="font-medium">{fundingRate.toFixed(4)}%</div>
+          {fundingRate !== baseFundingRate && (
+            <>
+              <div className="text-muted-foreground">Base Funding Rate (8h):</div>
+              <div className="font-medium">{baseFundingRate.toFixed(4)}%</div>
+            </>
+          )}
         </div>
         <div className="pt-1 border-t space-y-1">
           <div className={`font-medium ${getStatusColor(riskLevel)}`}>
@@ -310,6 +324,28 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
             <Tooltip
               content={CustomTooltip}
             />
+            {/* Risk level backgrounds */}
+            <ReferenceArea
+              yAxisId="right"
+              y1={0}
+              y2={50}
+              fill="#dcfce7"
+              fillOpacity={0.3}
+            />
+            <ReferenceArea
+              yAxisId="right"
+              y1={50}
+              y2={75}
+              fill="#fef9c3"
+              fillOpacity={0.3}
+            />
+            <ReferenceArea
+              yAxisId="right"
+              y1={75}
+              y2={100}
+              fill="#fee2e2"
+              fillOpacity={0.3}
+            />
             <Line
               yAxisId="left"
               type="monotone"
@@ -326,7 +362,7 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
               stroke="rgb(99,102,241)"
               strokeWidth={2}
               dot={false}
-              name="Funding Fees ($)"
+              name="Cumulative Funding Fees ($)"
             />
             <Line
               yAxisId="right"
@@ -341,71 +377,28 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
         </ResponsiveContainer>
       </div>
       
-      {/* Scenario buttons */}
-      <div className="mt-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-medium text-muted-foreground">Market Scenarios:</h4>
-          <span className="text-xs text-muted-foreground">Hover to preview, click to select</span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3">
-          {scenarios.map((scenario) => {
-            const isActive = activeScenario?.name === scenario.name;
-            const isHovered = hoveredScenario?.name === scenario.name;
-            const showTooltip = isHovered || isActive;
-            
-            return (
-              <div key={scenario.name} className="relative">
-                <button
-                  className={`w-full px-2 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm transition-all duration-200 ${
-                    isActive
-                      ? 'bg-primary text-primary-foreground shadow-lg scale-[1.02]'
-                      : 'bg-secondary hover:bg-secondary/80 hover:scale-[1.02]'
-                  }`}
-                  onClick={() => setActiveScenario(isActive ? null : scenario)}
-                  onMouseEnter={() => setHoveredScenario(scenario)}
-                  onMouseLeave={() => setHoveredScenario(null)}
-                >
-                  <div className="font-medium truncate">{scenario.name}</div>
-                  <div className="text-[10px] sm:text-xs mt-0.5 sm:mt-1 opacity-80 line-clamp-1">
-                    {scenario.description.split('.')[0]}
-                  </div>
-                </button>
-                
-                {showTooltip && (
-                  <div className="absolute z-10 left-0 right-0 mt-2 p-2 sm:p-3 bg-popover/95 backdrop-blur-sm text-popover-foreground rounded-lg shadow-xl border text-[10px] sm:text-xs space-y-1.5 sm:space-y-2">
-                    <div className="font-medium">{scenario.name}</div>
-                    <div className="space-y-1.5">
-                      {scenario.description.split('.').filter(Boolean).map((sentence, idx) => (
-                        <p key={idx} className="text-muted-foreground">
-                          • {sentence.trim()}
-                        </p>
-                      ))}
-                    </div>
-                    {isHovered && !isActive && (
-                      <div className="pt-1.5 text-[10px] text-muted-foreground/80">
-                        Click to activate this scenario
-                      </div>
-                    )}
-                  </div>
-                )}
+      {/* Market Scenarios */}
+      <div className="mt-4">
+        <h4 className="text-sm font-medium mb-2">Market Scenarios:</h4>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {scenarios.map((scenario) => (
+            <button
+              key={scenario.name}
+              className={`p-2 text-xs sm:text-sm rounded-lg border transition-colors
+                ${activeScenario?.name === scenario.name 
+                  ? 'bg-primary text-primary-foreground border-primary' 
+                  : 'hover:bg-muted'
+                }`}
+              onClick={() => setActiveScenario(scenario)}
+              onMouseEnter={() => setHoveredScenario(scenario)}
+              onMouseLeave={() => setHoveredScenario(null)}
+            >
+              <div className="font-medium">{scenario.name}</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground line-clamp-2">
+                {scenario.description}
               </div>
-            );
-          })}
-        </div>
-        
-        <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-            Total PnL
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-            Funding Fees
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-red-500"></div>
-            Liquidation Risk
-          </div>
+            </button>
+          ))}
         </div>
       </div>
     </Card>
