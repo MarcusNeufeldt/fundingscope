@@ -159,7 +159,7 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
         true  // assuming long position for now
       );
 
-      const rawPnL = calculateRawPnL(positionSize, priceAtDay, currentPrice);
+      const rawPnL = calculateRawPnL(positionSize, currentPrice, priceAtDay);
       const totalPnL = rawPnL - Math.abs(fundingImpact.fundingFees);
       const pnlPercent = (totalPnL / initialInvestment) * 100;
       const effectiveMargin = initialInvestment + totalPnL;
@@ -323,6 +323,23 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
             />
             <Tooltip
               content={CustomTooltip}
+            />
+            <Legend 
+              verticalAlign="top"
+              align="right"
+              iconType="plainline"
+              iconSize={20}
+              wrapperStyle={{
+                paddingLeft: '10px',
+                paddingBottom: '20px',
+                fontSize: '11px',
+                opacity: 0.8
+              }}
+              formatter={(value) => (
+                <span style={{ color: 'hsl(var(--foreground))', paddingLeft: '4px' }}>
+                  {value}
+                </span>
+              )}
             />
             {/* Risk level backgrounds */}
             <ReferenceArea
