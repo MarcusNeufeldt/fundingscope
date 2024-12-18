@@ -77,6 +77,8 @@ export interface SpotComparisonResult {
   leverageMultiplier: number;
   fundingDragPercent: number;
   scenarioAdjustedRisk: number;
+  liquidationRisk: number;
+  marginBuffer: number;
 }
 
 export interface SpotComparisonParams {
@@ -87,6 +89,12 @@ export interface SpotComparisonParams {
   fundingFees: number;
   timeHorizon: number;
   selectedScenario: TradingScenario;
+  isLong?: boolean;
+}
+
+function calculateLiquidationDetails(currentPrice: number, leverage: number, positionSize: number, isLong: boolean): { liquidationDistancePercent: number, maintenanceMarginRequired: number } {
+  // TO DO: implement liquidation details calculation
+  return { liquidationDistancePercent: 0, maintenanceMarginRequired: 0 };
 }
 
 export function calculateSpotComparison(params: SpotComparisonParams): SpotComparisonResult {
@@ -113,11 +121,38 @@ export function calculateSpotComparison(params: SpotComparisonParams): SpotCompa
   const spotSharpe = spotPnL / (spotRisk * spotInvestment);
   const leverageSharpe = leveragedPnL / (leverageRisk * params.initialInvestment);
   
+  // Calculate liquidation risk
+  const { liquidationDistancePercent, maintenanceMarginRequired } = calculateLiquidationDetails(
+    params.currentPrice,
+    params.leverage,
+    params.initialInvestment * params.leverage,
+    params.isLong ?? true
+  );
+  
+  // Calculate effective margin after funding fees
+  const effectiveMargin = params.initialInvestment - params.fundingFees;
+  const marginBuffer = effectiveMargin - maintenanceMarginRequired;
+  const marginBufferPercent = (marginBuffer / params.initialInvestment) * 100;
+  
+  // Assess funding impact relative to position size and PnL
+  const fundingToPositionRatio = (params.fundingFees / params.initialInvestment) * 100;
+  const fundingToPnLRatio = params.fundingFees / Math.abs(leveragedPnL);
+  
   // Compare performance metrics
   const leveragedReturn = (leveragedPnL / params.initialInvestment) * 100;
   const spotReturn = (spotPnL / spotInvestment) * 100;
-  const isFundingSignificant = params.fundingFees > Math.abs(spotPnL);
-  const isLeverageWorthIt = leverageSharpe > spotSharpe && leveragedPnL > spotPnL;
+  
+  // Enhanced decision metrics
+  const isFundingSignificant = (fundingToPositionRatio > 2 && fundingToPnLRatio > 0.5); // Only if BOTH position AND PnL impact are high
+  const hasAdequateMargin = marginBufferPercent > 20; // >20% buffer above maintenance margin
+  const hasPositiveRiskAdjustedReturn = leveragedReturn > spotReturn * (params.leverage * 0.15); // Should capture at least 15% of theoretical max
+
+  const isLeverageWorthIt = leveragedReturn > spotReturn * 1.5 && // 50% better than spot
+                           hasAdequateMargin &&
+                           (
+                             !isFundingSignificant || // Either funding is not significant
+                             (leveragedReturn > spotReturn * 3) // Or returns are 3x better despite high funding
+                           );
   
   return {
     spotPnL,
@@ -129,8 +164,10 @@ export function calculateSpotComparison(params: SpotComparisonParams): SpotCompa
     isFundingSignificant,
     isLeverageWorthIt,
     leverageMultiplier: leveragedPnL / spotPnL,
-    fundingDragPercent: (params.fundingFees / params.initialInvestment) * 100,
-    scenarioAdjustedRisk
+    fundingDragPercent: fundingToPositionRatio,
+    scenarioAdjustedRisk,
+    liquidationRisk: liquidationDistancePercent,
+    marginBuffer: marginBufferPercent
   };
 }
 
@@ -167,67 +204,63 @@ export function getSpotComparisonRecommendations(
   // Base comparison recommendation
   recommendations.push({
     type: 'position',
-    title: 'Leverage vs Spot Comparison',
-    description: `${params.leverage}x leveraged position ${
+    title: 'Leverage vs Spot Performance',
+    description: `${params.leverage}x leverage ${
       comparison.isLeverageWorthIt 
-        ? `outperforms spot with ${comparison.leveragedReturn.toFixed(1)}% vs ${comparison.spotReturn.toFixed(1)}% return` 
-        : `underperforms spot with ${comparison.leveragedReturn.toFixed(1)}% vs ${comparison.spotReturn.toFixed(1)}% return`
+        ? `amplifies returns ${(comparison.leveragedReturn/comparison.spotReturn).toFixed(1)}x (${comparison.leveragedReturn.toFixed(1)}% vs ${comparison.spotReturn.toFixed(1)}%)` 
+        : `yields ${comparison.leveragedReturn.toFixed(1)}% vs spot's ${comparison.spotReturn.toFixed(1)}%`
     }. ${
       comparison.isFundingSignificant
-        ? `Funding fees of $${params.fundingFees.toFixed(2)} significantly reduce leverage advantage.`
-        : `Funding fees of $${params.fundingFees.toFixed(2)} are justified by increased returns.`
-    } ${
-      comparison.leverageSharpe > comparison.spotSharpe
-        ? `Risk-adjusted returns favor leverage (${comparison.leverageSharpe.toFixed(2)} vs ${comparison.spotSharpe.toFixed(2)} Sharpe).`
-        : `Risk-adjusted returns favor spot (${comparison.spotSharpe.toFixed(2)} vs ${comparison.leverageSharpe.toFixed(2)} Sharpe).`
-    }`,
-    severity: comparison.isLeverageWorthIt ? 'low' : 'medium',
+        ? `High funding cost (${comparison.fundingDragPercent.toFixed(1)}% of position) is offset by ${(comparison.leveragedReturn/comparison.spotReturn).toFixed(1)}x return multiplier.`
+        : `Funding cost at ${comparison.fundingDragPercent.toFixed(1)}% of position is reasonable for the returns.`
+    } Strong margin buffer at ${comparison.marginBuffer.toFixed(1)}%.`,
+    severity: 'low',
     action: comparison.isLeverageWorthIt
-      ? 'Current leverage setup appears optimal vs spot'
-      : `Consider spot position instead - similar returns with lower risk and no funding costs`
+      ? `Maintain ${params.leverage}x leverage - returns justify costs with adequate safety margin`
+      : `Consider ${comparison.marginBuffer < 30 ? 'reducing leverage to increase margin buffer' : 
+          comparison.isFundingSignificant ? 'lower leverage to reduce funding impact' : 'adjusting position size'}`
   });
 
   // Scenario-specific recommendations
   switch (params.selectedScenario) {
     case "Sideways":
-      if (!comparison.isLeverageWorthIt) {
+      if (comparison.fundingDragPercent > 1.5) {
         recommendations.push({
-          type: 'opportunity',
-          title: 'Spot Advantage in Sideways Market',
-          description: `In sideways market, spot position avoids ${comparison.fundingDragPercent.toFixed(1)}% funding cost drag. ` +
-            `Expected price movement may not justify leverage costs.`,
-          severity: 'low',
-          action: 'Consider spot position to avoid funding costs in ranging market'
+          type: 'risk',
+          title: 'High Funding Impact in Range',
+          description: `Ranging market with ${comparison.fundingDragPercent.toFixed(1)}% funding drag reduces profitability. ` +
+            `Consider spot's ${comparison.spotReturn.toFixed(1)}% return with no funding costs.`,
+          severity: 'medium',
+          action: 'Reduce leverage or switch to spot to minimize funding impact'
         });
       }
       break;
 
     case "Exponential Pump":
     case "Parabolic":
-      if (comparison.isLeverageWorthIt && params.timeHorizon > 30) {
+      if (comparison.leveragedReturn > comparison.spotReturn * 1.5 && comparison.marginBuffer > 40) {
         recommendations.push({
           type: 'opportunity',
-          title: 'Leverage Advantage in Strong Trend',
-          description: `In ${params.selectedScenario.toLowerCase()} scenario, ${params.leverage}x leverage amplifies returns by ${comparison.leverageMultiplier.toFixed(1)}x ` +
-            `after funding costs. Strong trend justifies higher costs.`,
+          title: 'Strong Trend Leverage Setup',
+          description: `${params.leverage}x leverage amplifies returns ${(comparison.leveragedReturn/comparison.spotReturn).toFixed(1)}x ` +
+            `with healthy ${comparison.marginBuffer.toFixed(1)}% margin buffer and manageable ${comparison.fundingDragPercent.toFixed(1)}% funding cost.`,
           severity: 'low',
-          action: 'Current leverage appears optimal for capturing strong trend'
+          action: 'Maintain leverage position with strong risk management'
         });
       }
       break;
 
     case "Volatile Growth":
-      recommendations.push({
-        type: 'position',
-        title: 'Position Sizing in Volatile Market',
-        description: `Consider split position: ${
-          comparison.isLeverageWorthIt 
-            ? `${Math.round(100/params.leverage)}% leveraged, remainder in spot to optimize risk/reward.`
-            : 'Majority in spot, small portion in leverage for upside exposure.'
-        } Volatile market may present both spot accumulation and leverage opportunities.`,
-        severity: 'low',
-        action: 'Consider hybrid spot/leverage approach for volatile conditions'
-      });
+      if (comparison.leveragedReturn > comparison.spotReturn && comparison.marginBuffer > 35) {
+        recommendations.push({
+          type: 'opportunity',
+          title: 'Optimized Risk-Reward Setup',
+          description: `${params.leverage}x leverage provides ${(comparison.leveragedReturn/comparison.spotReturn).toFixed(1)}x return ` +
+            `with ${comparison.marginBuffer.toFixed(1)}% safety margin. Volatility well-managed.`,
+          severity: 'low',
+          action: 'Position sized appropriately for market conditions'
+        });
+      }
       break;
   }
 
