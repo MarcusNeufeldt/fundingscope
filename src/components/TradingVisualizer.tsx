@@ -3,6 +3,7 @@ import { ProfitLossChart } from "./ProfitLossChart";
 import { InputForm, TradingParams } from "./InputForm";
 import { Card } from "./ui/card";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { HowToUseSheet } from "./HowToUseSheet";
 
 const queryClient = new QueryClient();
 
@@ -20,11 +21,15 @@ export const TradingVisualizer: React.FC = () => {
     <QueryClientProvider client={queryClient}>
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8 space-y-4 sm:space-y-6">
         <div className="text-center mb-12">
-          <h1 className="text-xl sm:text-2xl font-bold text-primary mb-4">
-            Leveraged Trading Visualizer
-          </h1>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            Analyze the impact of funding fees on your leveraged positions
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <h1 className="text-2xl sm:text-3xl font-bold text-primary">
+              FundingScope Analysis Tool
+            </h1>
+            <HowToUseSheet />
+          </div>
+          <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto">
+            Make informed decisions about leverage vs. spot trading by analyzing funding fees impact, 
+            liquidation risks, and position profitability across different market scenarios
           </p>
         </div>
 
