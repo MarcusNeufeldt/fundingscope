@@ -113,6 +113,3 @@ Contributions welcome! Areas of interest:
 
 MIT License - see LICENSE file for details.
 
----
-
-Built with ❤️ using [Lovable](https://lovable.dev/projects/84c5d9c0-7123-4317-a464-63e2fac48e7a)
