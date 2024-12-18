@@ -202,23 +202,31 @@ export function getSpotComparisonRecommendations(
   const recommendations = [];
 
   // Base comparison recommendation
+  const isHighRisk = comparison.liquidationRisk > 75 || comparison.marginBuffer < 20;
+  const riskAssessment = isHighRisk 
+    ? `WARNING: Projected margin buffer of ${comparison.marginBuffer.toFixed(1)}% indicates high liquidation risk.`
+    : comparison.marginBuffer < 40
+    ? `Projected margin buffer of ${comparison.marginBuffer.toFixed(1)}% may be insufficient for market volatility.`
+    : `Projected margin buffer of ${comparison.marginBuffer.toFixed(1)}% provides adequate safety.`;
+
   recommendations.push({
-    type: 'position',
-    title: 'Leverage vs Spot Performance',
-    description: `${params.leverage}x leverage ${
+    type: isHighRisk ? 'critical' : 'position',
+    title: 'Projected Leverage vs Spot Returns',
+    description: `${params.leverage}x leverage strategy ${
       comparison.isLeverageWorthIt 
-        ? `amplifies returns ${(comparison.leveragedReturn/comparison.spotReturn).toFixed(1)}x (${comparison.leveragedReturn.toFixed(1)}% vs ${comparison.spotReturn.toFixed(1)}%)` 
-        : `yields ${comparison.leveragedReturn.toFixed(1)}% vs spot's ${comparison.spotReturn.toFixed(1)}%`
+        ? `projects ${(comparison.leveragedReturn/comparison.spotReturn).toFixed(1)}x amplified returns (${comparison.leveragedReturn.toFixed(1)}% vs spot's ${comparison.spotReturn.toFixed(1)}%)` 
+        : `would yield ${comparison.leveragedReturn.toFixed(1)}% vs projected spot return of ${comparison.spotReturn.toFixed(1)}%`
     }. ${
       comparison.isFundingSignificant
-        ? `High funding cost (${comparison.fundingDragPercent.toFixed(1)}% of position) is offset by ${(comparison.leveragedReturn/comparison.spotReturn).toFixed(1)}x return multiplier.`
-        : `Funding cost at ${comparison.fundingDragPercent.toFixed(1)}% of position is reasonable for the returns.`
-    } Strong margin buffer at ${comparison.marginBuffer.toFixed(1)}%.`,
-    severity: 'low',
-    action: comparison.isLeverageWorthIt
-      ? `Maintain ${params.leverage}x leverage - returns justify costs with adequate safety margin`
-      : `Consider ${comparison.marginBuffer < 30 ? 'reducing leverage to increase margin buffer' : 
-          comparison.isFundingSignificant ? 'lower leverage to reduce funding impact' : 'adjusting position size'}`
+        ? `Estimated funding costs (${comparison.fundingDragPercent.toFixed(1)}% of position) would significantly impact profitability.`
+        : `Projected funding costs of ${comparison.fundingDragPercent.toFixed(1)}% would affect returns.`
+    } ${riskAssessment}`,
+    severity: isHighRisk ? 'high' : comparison.marginBuffer < 40 ? 'medium' : 'low',
+    action: isHighRisk
+      ? 'Consider lower leverage or higher margin to mitigate liquidation risk'
+      : comparison.marginBuffer < 40
+      ? 'Plan for a larger margin buffer to handle market movements'
+      : 'Ensure proper risk management if executing this strategy'
   });
 
   // Scenario-specific recommendations
@@ -227,38 +235,44 @@ export function getSpotComparisonRecommendations(
       if (comparison.fundingDragPercent > 1.5) {
         recommendations.push({
           type: 'risk',
-          title: 'High Funding Impact in Range',
-          description: `Ranging market with ${comparison.fundingDragPercent.toFixed(1)}% funding drag reduces profitability. ` +
-            `Consider spot's ${comparison.spotReturn.toFixed(1)}% return with no funding costs.`,
+          title: 'High Projected Funding in Range',
+          description: `In a ranging market scenario, estimated funding drag of ${comparison.fundingDragPercent.toFixed(1)}% would reduce profitability. ` +
+            `A spot position would target ${comparison.spotReturn.toFixed(1)}% return without funding costs or liquidation risks.`,
           severity: 'medium',
-          action: 'Reduce leverage or switch to spot to minimize funding impact'
+          action: 'Consider spot strategy to avoid funding costs and liquidation risks'
         });
       }
       break;
 
     case "Exponential Pump":
     case "Parabolic":
-      if (comparison.leveragedReturn > comparison.spotReturn * 1.5 && comparison.marginBuffer > 40) {
+      if (comparison.leveragedReturn > comparison.spotReturn * 1.5) {
         recommendations.push({
-          type: 'opportunity',
-          title: 'Strong Trend Leverage Setup',
-          description: `${params.leverage}x leverage amplifies returns ${(comparison.leveragedReturn/comparison.spotReturn).toFixed(1)}x ` +
-            `with healthy ${comparison.marginBuffer.toFixed(1)}% margin buffer and manageable ${comparison.fundingDragPercent.toFixed(1)}% funding cost.`,
-          severity: 'low',
-          action: 'Maintain leverage position with strong risk management'
+          type: comparison.marginBuffer < 40 ? 'risk' : 'opportunity',
+          title: `${comparison.marginBuffer < 40 ? 'High Risk' : 'Potential'} Trend Strategy`,
+          description: `${params.leverage}x leverage could amplify returns ${(comparison.leveragedReturn/comparison.spotReturn).toFixed(1)}x ` +
+            `with a ${comparison.marginBuffer < 40 ? 'thin' : 'projected'} ${comparison.marginBuffer.toFixed(1)}% margin buffer. ` +
+            `Expected funding cost of ${comparison.fundingDragPercent.toFixed(1)}% ${comparison.marginBuffer < 40 ? 'would increase liquidation risk.' : 'should be monitored.'}`,
+          severity: comparison.marginBuffer < 40 ? 'high' : 'medium',
+          action: comparison.marginBuffer < 40 
+            ? 'Consider lower leverage or higher margin if pursuing this strategy'
+            : 'Plan for active risk management if implementing'
         });
       }
       break;
 
     case "Volatile Growth":
-      if (comparison.leveragedReturn > comparison.spotReturn && comparison.marginBuffer > 35) {
+      if (comparison.leveragedReturn > comparison.spotReturn) {
         recommendations.push({
-          type: 'opportunity',
-          title: 'Optimized Risk-Reward Setup',
-          description: `${params.leverage}x leverage provides ${(comparison.leveragedReturn/comparison.spotReturn).toFixed(1)}x return ` +
-            `with ${comparison.marginBuffer.toFixed(1)}% safety margin. Volatility well-managed.`,
-          severity: 'low',
-          action: 'Position sized appropriately for market conditions'
+          type: comparison.marginBuffer < 35 ? 'risk' : 'opportunity',
+          title: `${comparison.marginBuffer < 35 ? 'High Risk' : 'Balanced'} Strategy Profile`,
+          description: `${params.leverage}x leverage strategy targets ${(comparison.leveragedReturn/comparison.spotReturn).toFixed(1)}x return ` +
+            `with projected ${comparison.marginBuffer.toFixed(1)}% margin buffer in volatile conditions. ` +
+            `${comparison.marginBuffer < 35 ? 'Expected volatility poses significant liquidation risk.' : 'Buffer should accommodate expected volatility.'}`,
+          severity: comparison.marginBuffer < 35 ? 'high' : 'medium',
+          action: comparison.marginBuffer < 35
+            ? 'Plan for larger margin buffer to handle projected volatility'
+            : 'Prepare risk management strategy before implementing'
         });
       }
       break;

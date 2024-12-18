@@ -62,21 +62,22 @@ const getRecommendations = (
 
   // Early warning if position will be liquidated by funding
   if (fundingImpact.isLiquidated && fundingImpact.liquidationPeriod !== undefined) {
-    const daysUntilLiquidation = Math.floor(fundingImpact.liquidationPeriod / 3); // Convert periods to days
+    const fundingPeriodsPerDay = 3; // 8-hour funding periods
+    const daysUntilLiquidation = Math.floor(fundingImpact.liquidationPeriod / fundingPeriodsPerDay);
     const marginAtLiquidation = fundingImpact.calculations.maintenanceMargin;
     const daysToHalfMargin = Math.floor((daysUntilLiquidation * params.initialInvestment) / (2 * fundingImpact.calculations.totalFundingFees));
     
     recommendations.unshift({
       type: 'critical',
-      title: 'Warning: Funding Fees Will Cause Liquidation',
-      description: `Position will be liquidated on day ${daysUntilLiquidation} due to funding fees depleting margin. ` +
-        `Initial margin of $${params.initialInvestment.toFixed(2)} will be reduced to maintenance requirement of $${marginAtLiquidation.toFixed(2)} ` +
-        `through daily funding costs of ${(dailyFundingCost / effectiveMargin * 100).toFixed(2)}% of margin. ` +
-        `Half of margin will be depleted by day ${daysToHalfMargin}.`,
+      title: 'Warning: Projected Funding-Induced Liquidation',
+      description: `Strategy would face liquidation around day ${daysUntilLiquidation} due to funding fees depleting margin. ` +
+        `Initial margin of $${params.initialInvestment.toFixed(2)} would decrease to maintenance requirement of $${marginAtLiquidation.toFixed(2)} ` +
+        `through projected daily funding costs of ${(dailyFundingCost / effectiveMargin * 100).toFixed(2)}% of margin. ` +
+        `Half of margin would be depleted by day ${daysToHalfMargin}.`,
       severity: 'high',
       action: daysUntilLiquidation < params.timeHorizon / 2 
-        ? 'Urgently reduce position timeframe or increase margin to prevent funding-induced liquidation'
-        : 'Consider reducing timeframe or increasing initial margin to maintain position'
+        ? 'Consider shorter timeframe or higher margin to prevent projected liquidation'
+        : 'Plan for shorter timeframe or increased initial margin if implementing'
     });
   }
   // Warning about significant funding impact even if not liquidating
@@ -86,15 +87,15 @@ const getRecommendations = (
     
     recommendations.push({
       type: 'risk',
-      title: 'High Funding Impact on Margin',
-      description: `Funding fees will significantly impact position profitability. ` +
-        `Current margin buffer of $${fundingImpact.calculations.marginBuffer.toFixed(2)} (${marginBufferPercent.toFixed(1)}% of initial margin) ` +
-        `provides approximately ${marginBufferDays} days of funding cost coverage. ` +
-        `Liquidation risk is ${fundingImpact.liquidationRisk.toFixed(1)}%.`,
+      title: 'Projected High Funding Impact',
+      description: `Funding fees would significantly impact strategy profitability. ` +
+        `Projected margin buffer of $${fundingImpact.calculations.marginBuffer.toFixed(2)} (${marginBufferPercent.toFixed(1)}% of initial margin) ` +
+        `would provide approximately ${marginBufferDays} days of funding cost coverage. ` +
+        `Estimated liquidation risk: ${fundingImpact.liquidationRisk.toFixed(1)}%.`,
       severity: fundingImpact.liquidationRisk > 75 ? 'high' : 'medium',
       action: marginBufferDays < params.timeHorizon / 2
-        ? 'Increase margin buffer or reduce position duration to maintain safe distance from liquidation'
-        : 'Monitor funding rates closely and consider taking profit if rates increase'
+        ? 'Plan for larger margin buffer or shorter duration to maintain safety margin'
+        : 'Consider monitoring funding rates and taking profit if rates increase'
     });
   }
 
@@ -105,11 +106,11 @@ const getRecommendations = (
       if (fundingToMarginRatio > 0.01) { // More than 1% per period
         recommendations.push({
           type: 'risk',
-          title: 'High Funding Cost in Sideways Market',
-          description: `Funding cost of ${(fundingToMarginRatio * 100).toFixed(2)}% per 8h period is significant in sideways market. ` +
-            `Total projected funding of $${fundingImpact.calculations.totalFundingFees.toFixed(2)} may exceed potential gains from ${Math.abs(priceMove).toFixed(1)}% price movement.`,
+          title: 'High Projected Funding in Sideways Market',
+          description: `Projected funding cost of ${(fundingToMarginRatio * 100).toFixed(2)}% per 8h period would be significant in sideways market. ` +
+            `Estimated total funding of $${fundingImpact.calculations.totalFundingFees.toFixed(2)} could exceed potential gains from ${Math.abs(priceMove).toFixed(1)}% price movement.`,
           severity: fundingToMarginRatio > 0.02 ? 'high' : 'medium',
-          action: 'Consider shorter timeframe or lower leverage in sideways market'
+          action: 'Consider shorter timeframe or lower leverage for sideways market strategy'
         });
       }
       break;
@@ -120,11 +121,11 @@ const getRecommendations = (
       if (breakevenMove > 5) {
         recommendations.push({
           type: 'position',
-          title: 'High Funding Cost in Bull Scenario',
-          description: `Need ${breakevenMove.toFixed(1)}% price movement to break even on funding costs of $${fundingImpact.calculations.totalFundingFees.toFixed(2)}. ` +
+          title: 'Projected Funding Costs in Bull Scenario',
+          description: `Strategy would need ${breakevenMove.toFixed(1)}% price movement to break even on estimated funding costs of $${fundingImpact.calculations.totalFundingFees.toFixed(2)}. ` +
             `${selectedScenario} scenario typically sees strong moves that could justify these costs if momentum continues.`,
           severity: breakevenMove > 10 ? 'medium' : 'low',
-          action: 'Monitor funding rates closely and consider taking profit if momentum weakens'
+          action: 'Plan to monitor momentum and consider profit targets based on funding rates'
         });
       }
       break;
@@ -158,17 +159,17 @@ const getRecommendations = (
     if (adjustedMarginDepletion > 15) {
       recommendations.push({
         type: 'timing',
-        title: 'Significant Funding Impact on Margin',
-        description: `In ${selectedScenario.toLowerCase()} scenario, funding fees would consume ${adjustedMarginDepletion.toFixed(1)}% of your available margin over ${params.timeHorizon} days. ${
+        title: 'Projected Funding Impact Analysis',
+        description: `In ${selectedScenario.toLowerCase()} scenario, funding fees would consume ${adjustedMarginDepletion.toFixed(1)}% of available margin over ${params.timeHorizon} days. ${
           daysToLiquidation < params.timeHorizon 
-            ? `WARNING: Position would be liquidated after ${Math.floor(daysToLiquidation)} days due to funding fees alone.`
-            : `Daily funding cost is ${(dailyFundingCost / effectiveMargin * 100).toFixed(2)}% of your margin.`
+            ? `WARNING: Strategy would face liquidation after ${Math.floor(daysToLiquidation)} days from funding fees alone.`
+            : `Projected daily funding cost would be ${(dailyFundingCost / effectiveMargin * 100).toFixed(2)}% of margin.`
         }`,
         severity: daysToLiquidation < params.timeHorizon ? 'high' : 
                  adjustedMarginDepletion > 30 ? 'medium' : 'low',
         action: daysToLiquidation < params.timeHorizon 
-          ? 'Reduce position timeframe to prevent funding-induced liquidation'
-          : 'Consider reducing timeframe or increasing margin to account for funding costs'
+          ? 'Consider shorter timeframe to avoid projected funding-induced liquidation'
+          : 'Plan for shorter timeframe or increased margin to account for funding costs'
       });
     }
 
@@ -178,10 +179,11 @@ const getRecommendations = (
         if (marginUtilization > 10) {
           recommendations.push({
             type: 'risk',
-            title: 'Funding Erosion in Sideways Market',
-            description: `With limited price movement in sideways market, funding fees (${marginUtilization.toFixed(1)}% of margin) could exceed potential gains. Break-even requires ${(marginUtilization / 2).toFixed(1)}% price movement.`,
+            title: 'Projected Funding Erosion in Range',
+            description: `With limited price movement in sideways market, projected funding fees (${marginUtilization.toFixed(1)}% of margin) could exceed potential gains. ` +
+              `Strategy would need ${(marginUtilization / 2).toFixed(1)}% price movement to break even.`,
             severity: marginUtilization > 20 ? 'high' : 'medium',
-            action: 'Consider shorter timeframe or lower leverage in sideways market'
+            action: 'Consider shorter timeframe or lower leverage for ranging market strategy'
           });
         }
         break;
@@ -192,37 +194,11 @@ const getRecommendations = (
         if (breakevenMove > 5) {
           recommendations.push({
             type: 'position',
-            title: 'High Funding Cost in Bull Scenario',
-            description: `Need ${breakevenMove.toFixed(1)}% price movement just to break even on funding costs. However, ${selectedScenario.toLowerCase()} scenario could justify these costs if momentum continues.`,
+            title: 'Projected Costs in Bull Strategy',
+            description: `Strategy would need ${breakevenMove.toFixed(1)}% price movement to break even on projected funding costs. ` +
+              `${selectedScenario.toLowerCase()} scenario could justify these costs if momentum develops as expected.`,
             severity: breakevenMove > 10 ? 'medium' : 'low',
-            action: 'Monitor funding rates closely and consider taking profit if momentum weakens'
-          });
-        }
-        break;
-
-      case "Volatile Growth":
-        const worstCaseFunding = adjustedFundingCost * 1.5; // Account for funding spikes
-        if (worstCaseFunding / effectiveMargin > 0.25) {
-          recommendations.push({
-            type: 'risk',
-            title: 'Funding Risk in Volatile Market',
-            description: `Volatile markets often see funding rate spikes. Worst-case funding could reach ${((worstCaseFunding / effectiveMargin) * 100).toFixed(1)}% of margin over ${params.timeHorizon} days.`,
-            severity: 'medium',
-            action: 'Build larger margin buffer or reduce position size to account for funding spikes'
-          });
-        }
-        break;
-
-      case "Market Cycle":
-        const cycleLength = 100; // days
-        const cyclesSpanned = params.timeHorizon / cycleLength;
-        if (cyclesSpanned > 0.5) {
-          recommendations.push({
-            type: 'timing',
-            title: 'Funding Across Market Cycles',
-            description: `Position spans ${cyclesSpanned.toFixed(1)} market cycles. Funding rates typically peak during euphoric phases, adding ${(adjustedMarginDepletion * 1.5).toFixed(1)}% potential margin erosion.`,
-            severity: cyclesSpanned > 1 ? 'medium' : 'low',
-            action: 'Consider breaking position into smaller timeframes aligned with cycle phases'
+            action: 'Plan to monitor momentum indicators and funding rate trends if implementing'
           });
         }
         break;
@@ -255,26 +231,38 @@ const getRecommendations = (
   
   // Calculate if funding is significantly impacting profitability
   const fundingToExpectedPnLRatio = totalFundingCost / Math.abs(scenarioAdjustedPnL);
-  const isFundingSignificant = fundingToExpectedPnLRatio > 0.5 && // Funding costs more than 50% of expected gains
-                              scenarioCharacteristics.fundingRisk !== 'low' && // Not a low funding risk scenario
-                              currentPnLWithFunding < 0; // Currently showing losses
-  
+  const isFundingSignificant = 
+    fundingToExpectedPnLRatio > 0.5 && // Funding costs more than 50% of expected gains
+    scenarioCharacteristics.fundingRisk !== 'low' && // Not a low funding risk scenario
+    currentPnLWithFunding < 0 && // Currently showing losses
+    Math.abs(scenarioAdjustedPnL) > 0; // Ensure we have valid expected PnL
+
   // Early warning about projected funding impact - only show if funding costs are significant relative to expected gains
-  if (isFundingSignificant) {
+  // and the scenario suggests high funding risk
+  if (isFundingSignificant && scenarioCharacteristics.fundingRisk === 'high') {
+    const severityMultiplier = {
+      "Exponential Pump": 1.2,
+      "Parabolic": 1.5,
+      "Cascading Pump": 1.3,
+      "Market Cycle": 1.0
+    }[selectedScenario] || 1.0;
+
+    const adjustedFundingRatio = fundingToExpectedPnLRatio * severityMultiplier;
+    
     recommendations.unshift({
       type: 'critical',
-      title: 'Warning: High Funding Cost Impact',
-      description: `In the ${selectedScenario.toLowerCase()} scenario, funding fees (${totalFundingCost.toFixed(2)} USDT) would consume ${(fundingToExpectedPnLRatio * 100).toFixed(1)}% of your expected gains${
+      title: `Warning: High Funding Cost Impact in ${selectedScenario}`,
+      description: `In the ${selectedScenario.toLowerCase()} scenario, funding fees (${totalFundingCost.toFixed(2)} USDT) would consume ${(adjustedFundingRatio * 100).toFixed(1)}% of your expected gains${
         timeToExpectedPeak > 0 ? ` before reaching the typical peak around day ${scenarioCharacteristics.peakDay}` : ''
       }. ${
         daysToLiquidation < params.timeHorizon 
-          ? `Position risks liquidation around day ${Math.floor(daysToLiquidation)} due to funding fees alone.`
-          : `Consider if the ${(dailyFundingCost / effectiveMargin * 100).toFixed(2)}% daily funding cost is justified by the expected price movement.`
+          ? `Strategy risks liquidation around day ${Math.floor(daysToLiquidation)} due to funding fees alone.`
+          : `Consider if the ${(dailyFundingCost / effectiveMargin * 100).toFixed(2)}% daily funding cost is justified by the expected price movement in this scenario.`
       }`,
-      severity: fundingToExpectedPnLRatio > 0.8 ? 'high' : 'medium',
+      severity: adjustedFundingRatio > 0.8 ? 'high' : 'medium',
       action: timeToExpectedPeak > 0 
-        ? `Consider extending timeframe to day ${scenarioCharacteristics.peakDay} to capture full movement potential`
-        : 'Consider reducing leverage to improve funding efficiency'
+        ? `Consider extending timeframe to day ${scenarioCharacteristics.peakDay} to capture full movement potential in ${selectedScenario.toLowerCase()} scenario`
+        : `Reduce leverage or consider spot position for ${selectedScenario.toLowerCase()} scenario to avoid funding costs`
     });
   }
 
@@ -424,28 +412,37 @@ const getRecommendations = (
     });
   }
 
-  // Add spot comparison recommendations if not liquidated
-  if (!fundingImpact.isLiquidated) {
-    const spotComparison = calculateSpotComparison({
-      initialInvestment: params.initialInvestment,
-      currentPrice: params.currentPrice,
-      targetPrice: params.targetPrice,
-      leverage: params.leverage,
-      fundingFees: fundingImpact.fundingFees,
-      timeHorizon: params.timeHorizon,
-      selectedScenario
-    });
+  // Add spot comparison recommendations
+  const spotComparison = calculateSpotComparison({
+    initialInvestment: params.initialInvestment,
+    currentPrice: params.currentPrice,
+    targetPrice: params.targetPrice,
+    leverage: params.leverage,
+    fundingFees: fundingImpact.fundingFees,
+    timeHorizon: params.timeHorizon,
+    selectedScenario: selectedScenario,
+    isLong: isLong
+  });
 
-    recommendations.push(...getSpotComparisonRecommendations(spotComparison, {
-      initialInvestment: params.initialInvestment,
-      currentPrice: params.currentPrice,
-      targetPrice: params.targetPrice,
-      leverage: params.leverage,
-      fundingFees: fundingImpact.fundingFees,
-      timeHorizon: params.timeHorizon,
-      selectedScenario
-    }));
-  }
+  const spotRecommendations = getSpotComparisonRecommendations(spotComparison, {
+    initialInvestment: params.initialInvestment,
+    currentPrice: params.currentPrice,
+    targetPrice: params.targetPrice,
+    leverage: params.leverage,
+    fundingFees: fundingImpact.fundingFees,
+    timeHorizon: params.timeHorizon,
+    selectedScenario: selectedScenario,
+    isLong: isLong
+  });
+
+  // Add spot recommendations to the list
+  recommendations.push(...spotRecommendations.map(rec => ({
+    type: rec.type as RecommendationItem['type'],
+    title: rec.title,
+    description: rec.description,
+    severity: rec.severity as RecommendationItem['severity'],
+    action: rec.action
+  })));
 
   return recommendations;
 };

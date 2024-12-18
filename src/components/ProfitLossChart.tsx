@@ -175,7 +175,7 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
           return {
             day,
             rawPnL: -initialInvestment,
-            fundingFees: initialInvestment, // Maximum loss is initial margin
+            fundingFees: fundingImpact.fundingFees, // Use actual funding fees from impact calculation
             fundingRate: 0,
             baseFundingRate: 0,
             totalPnL: -initialInvestment,
