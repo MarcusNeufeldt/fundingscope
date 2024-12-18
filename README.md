@@ -1,69 +1,118 @@
-# Welcome to your Lovable project
+# Crypto Funding Fee Analyzer 📊
 
-## Project info
+A powerful analysis tool for crypto perpetual futures trading that helps you understand and optimize the impact of funding fees on your positions. Make informed decisions about leverage vs. spot trading across different market scenarios.
 
-**URL**: https://lovable.dev/projects/84c5d9c0-7123-4317-a464-63e2fac48e7a
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 
-## How can I edit this code?
+## 🎯 Purpose
 
-There are several ways of editing your application.
+Trading perpetual futures comes with the complexity of funding fees, which can significantly impact your position's profitability. This tool helps you:
 
-**Use Lovable**
+- Project funding fee impact across different timeframes
+- Compare leveraged vs. spot holding strategies
+- Assess liquidation risks considering funding rates
+- Optimize position parameters for different market scenarios
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/84c5d9c0-7123-4317-a464-63e2fac48e7a) and start prompting.
+## 🚀 Key Features
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Real-Time Market Data**:
+  - Live token price feeds
+  - Current funding rate tracking
+  - Automatic price updates
+  - Multiple trading pairs support
 
-**Use your preferred IDE**
+- **Advanced Scenario Analysis**:
+  - Linear growth baseline
+  - Exponential pump simulation
+  - Volatile growth with pullbacks
+  - Sideways market analysis
+  - Parabolic movement projection
+  - Accumulation phase modeling
+  - Cascading pump patterns
+  - Full market cycle simulation
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- **Comprehensive Position Analysis**:
+  - Day-by-day PnL projection
+  - Cumulative funding impact
+  - Margin health monitoring
+  - Liquidation risk tracking
+  - Break-even calculations
+  - Position ROI metrics
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- **Interactive Visualization**:
+  - Dynamic PnL charts
+  - Funding rate trends
+  - Margin warning levels
+  - Liquidation thresholds
+  - Scenario comparison
 
-Follow these steps:
+## 💡 Smart Recommendations
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+The tool provides context-aware insights:
+- Funding rate impact warnings
+- Optimal position duration
+- Leverage optimization tips
+- Spot vs. perp trade-offs
+- Market scenario alerts
+- Risk management suggestions
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## 🛠️ Technical Stack
 
-# Step 3: Install the necessary dependencies.
-npm i
+- **Frontend**: React with TypeScript
+- **Data Visualization**: Recharts
+- **State Management**: React Query
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Build Tool**: Vite
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+## 📊 How to Use
 
-**Edit a file directly in GitHub**
+1. **Select Trading Pair**:
+   - Choose from available perpetual pairs
+   - View current market price
+   - Monitor live funding rates
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+2. **Configure Position**:
+   - Set investment amount
+   - Adjust leverage (1x-125x)
+   - Define target price
+   - Set holding period
+   - View current funding rate
 
-**Use GitHub Codespaces**
+3. **Analyze Scenarios**:
+   - Compare different market patterns
+   - View projected outcomes
+   - Assess funding impact
+   - Monitor risk metrics
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+4. **Review Recommendations**:
+   - Position optimization tips
+   - Risk warnings
+   - Timing suggestions
+   - Strategy adjustments
 
-## What technologies are used for this project?
+## 🔒 Best Practices
 
-This project is built with .
+- Real-time data integration
+- Precise financial calculations
+- Comprehensive risk assessment
+- Data-driven recommendations
+- Regular market updates
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## 🤝 Contributing
 
-## How can I deploy this project?
+Contributions welcome! Areas of interest:
+- New market scenarios
+- Additional risk metrics
+- UI/UX improvements
+- Documentation updates
+- Performance optimizations
 
-Simply open [Lovable](https://lovable.dev/projects/84c5d9c0-7123-4317-a464-63e2fac48e7a) and click on Share -> Publish.
+## 📝 License
 
-## I want to use a custom domain - is that possible?
+MIT License - see LICENSE file for details.
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+---
+
+Built with ❤️ using [Lovable](https://lovable.dev/projects/84c5d9c0-7123-4317-a464-63e2fac48e7a)
