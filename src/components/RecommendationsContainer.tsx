@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { TradingParams } from "./InputForm";
-import { AlertCircle, TrendingUp, Shield, Clock, DollarSign, Target, ArrowUpDown } from "lucide-react";
+import { AlertCircle, TrendingUp, Shield, Clock, DollarSign, Target, ArrowUpDown, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { calculateLiquidationDetails } from "@/utils/liquidationUtils";
 import { calculateFundingImpact } from "@/utils/fundingRateUtils";
 import { calculateSpotComparison, getSpotComparisonRecommendations } from '../utils/spotCompareUtils';
@@ -40,7 +41,17 @@ const getRecommendations = (
     params.currentPrice,
     params.leverage,
     positionSize,
-    params.targetPrice > params.currentPrice // isLong
+    params.targetPrice > params.currentPrice, // isLong
+    currentPnL, // Pass current PnL
+    calculateFundingImpact(
+      positionSize,
+      params.fundingRate,
+      params.timeHorizon * 3, // Convert days to 8h periods
+      params.leverage,
+      params.initialInvestment,
+      params.currentPrice,
+      params.targetPrice > params.currentPrice
+    ).fundingFees // Pass accumulated funding
   );
   
   const priceMove = ((params.targetPrice - params.currentPrice) / params.currentPrice) * 100;
@@ -48,6 +59,44 @@ const getRecommendations = (
   const dailyFundingCost = (positionSize * params.fundingRate * 3) / 100; // Daily funding cost
   const marginUtilization = (effectiveMargin / params.initialInvestment) * 100;
   const isLong = params.targetPrice > params.currentPrice;
+
+  // Enhanced scenario risk characteristics
+  const scenarioRiskMultipliers = {
+    "Exponential Pump": { liquidationRisk: 1.8, fundingRisk: 2.0, volatilityMult: 1.5 },
+    "Volatile Growth": { liquidationRisk: 1.5, fundingRisk: 1.5, volatilityMult: 1.3 },
+    "Sideways": { liquidationRisk: 0.8, fundingRisk: 1.0, volatilityMult: 0.7 },
+    "Parabolic": { liquidationRisk: 2.0, fundingRisk: 2.2, volatilityMult: 1.8 },
+    "Accumulation": { liquidationRisk: 0.7, fundingRisk: 0.8, volatilityMult: 0.6 },
+    "Cascading Pump": { liquidationRisk: 1.6, fundingRisk: 1.7, volatilityMult: 1.4 },
+    "Market Cycle": { liquidationRisk: 1.2, fundingRisk: 1.3, volatilityMult: 1.1 },
+    "Linear": { liquidationRisk: 1.0, fundingRisk: 1.0, volatilityMult: 1.0 }
+  }[selectedScenario] || { liquidationRisk: 1.0, fundingRisk: 1.0, volatilityMult: 1.0 };
+
+  // Calculate compound funding impact
+  const periodsPerDay = 3; // 8-hour funding periods
+  const totalPeriods = params.timeHorizon * periodsPerDay;
+  const compoundedFundingCost = params.initialInvestment * 
+    (Math.pow(1 + (params.fundingRate), totalPeriods) - 1);
+
+  // Adjust liquidation risk based on scenario and real-time margin
+  const adjustedLiquidationRisk = liquidationRisk * scenarioRiskMultipliers.liquidationRisk;
+  const realTimeMarginRatio = (liquidationDetails.realTimeMargin || effectiveMargin) / params.initialInvestment;
+  
+  // Early warning if position is approaching liquidation
+  if (realTimeMarginRatio < 0.5 || adjustedLiquidationRisk > 70) {
+    recommendations.unshift({
+      type: 'critical',
+      title: 'High Liquidation Risk Alert',
+      description: `Position shows elevated liquidation risk (${adjustedLiquidationRisk.toFixed(1)}%) in ${selectedScenario} scenario. ` +
+        `Real-time margin ratio at ${(realTimeMarginRatio * 100).toFixed(1)}% with ${
+          liquidationDetails.adjustedLiquidationDistance 
+            ? `adjusted liquidation distance of $${liquidationDetails.adjustedLiquidationDistance.toFixed(2)}` 
+            : `standard liquidation distance of $${liquidationDetails.liquidationDistance.toFixed(2)}`
+        }.`,
+      severity: realTimeMarginRatio < 0.3 ? 'high' : 'medium',
+      action: `Consider ${realTimeMarginRatio < 0.3 ? 'immediate' : 'planned'} risk reduction via decreased leverage or position size`
+    });
+  }
 
   // Calculate projected funding impact
   const fundingImpact = calculateFundingImpact(
@@ -485,45 +534,57 @@ export const RecommendationsContainer: React.FC<RecommendationsContainerProps> =
   selectedScenario
 }) => {
   const recommendations = getRecommendations(params, currentPnL, liquidationRisk, effectiveMargin, selectedScenario);
+  const [isOpen, setIsOpen] = useState(true);
+
+  const getBadgeText = (count: number) => {
+    if (count === 0) return "All Clear";
+    if (count === 1) return "1 Key Point";
+    return `${count} Key Points`;
+  };
 
   return (
-    <Card className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Position Analysis</h3>
-        <Badge variant="outline" className={recommendations.length > 0 ? 'bg-yellow-50' : 'bg-green-50'}>
-          {recommendations.length} {recommendations.length === 1 ? 'Action' : 'Actions'} Needed
-        </Badge>
-      </div>
-      <Separator />
-      <div className="space-y-4">
-        {recommendations.map((rec, index) => (
-          <div key={index} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-            {getIconForType(rec.type)}
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h4 className="font-medium">{rec.title}</h4>
-                <Badge className={getSeverityColor(rec.severity)}>
-                  {rec.severity}
-                </Badge>
-              </div>
-              <p className="text-sm text-gray-600 mt-1">{rec.description}</p>
-              {rec.action && (
-                <p className="text-sm font-medium text-primary mt-2">
-                  💡 {rec.action}
-                </p>
-              )}
+    <Card className="p-4">
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold">Position Analysis</h3>
+              {isOpen ? 
+                <ChevronUp className="h-4 w-4 text-muted-foreground" /> : 
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              }
             </div>
+            <Badge variant="outline" 
+              className={recommendations.length > 0 ? 'bg-yellow-50' : 'bg-green-50'}>
+              {getBadgeText(recommendations.length)}
+            </Badge>
           </div>
-        ))}
-        {recommendations.length === 0 && (
-          <div className="text-center py-6">
-            <Shield className="h-12 w-12 text-green-500 mx-auto mb-2" />
-            <p className="text-sm text-gray-600">
-              Position parameters look optimal! Monitor market conditions for any changes.
-            </p>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <Separator className="my-4" />
+          <div className="space-y-4">
+            {recommendations.map((rec, index) => (
+              <div key={index} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+                {getIconForType(rec.type)}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium">{rec.title}</h4>
+                    <Badge variant="outline" className={getSeverityColor(rec.severity)}>
+                      {rec.severity}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">{rec.description}</p>
+                  {rec.action && (
+                    <p className="mt-2 text-sm font-medium">
+                      Recommendation: {rec.action}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 };
