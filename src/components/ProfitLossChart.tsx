@@ -13,6 +13,8 @@ import {
 } from "recharts";
 import { TradingParams } from "./InputForm";
 import { calculateFundingImpact, FundingRateImpact, calculateRawPnL } from "@/utils/fundingRateUtils";
+import { RecommendationsContainer } from "./RecommendationsContainer";
+import { TradingScenario } from "../types/scenarios";
 
 interface ProfitLossChartProps {
   params: TradingParams;
@@ -34,7 +36,7 @@ interface ChartDataPoint {
 }
 
 interface PriceScenario {
-  name: string;
+  name: TradingScenario;
   description: string;
   priceModifier: (day: number, baseReturn: number) => number;
   fundingModifier: (day: number, baseFunding: number, priceChange: number) => number;
@@ -277,147 +279,159 @@ export const ProfitLossChart: React.FC<ProfitLossChartProps> = React.memo(({ par
   };
 
   return (
-    <Card className="p-4 sm:p-6">
-      <div className="space-y-1 sm:space-y-2">
-        <h3 className="text-base sm:text-lg font-semibold">Profit/Loss Over Time</h3>
-        <p className="text-xs sm:text-sm text-muted-foreground">
-          Simulating long position with positive funding rates only. Negative funding would reduce costs and extend position viability.
-        </p>
-      </div>
-      <div className="h-[300px] sm:h-[400px] mt-3 sm:mt-4">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={data}
-            margin={{
-              top: 5,
-              right: 5,
-              left: 0,
-              bottom: 5,
-            }}
-          >
-            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-            <XAxis
-              dataKey="day"
-              type="number"
-              domain={[0, 'auto']}
-              tickFormatter={(day) => `${day}d`}
-              fontSize={10}
-              tickMargin={8}
-              minTickGap={30}
-            />
-            <YAxis
-              yAxisId="left"
-              tickFormatter={(value) => `$${Math.abs(value).toLocaleString()}`}
-              fontSize={10}
-              tickMargin={8}
-              width={60}
-            />
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              tickFormatter={(value) => `${value}%`}
-              domain={[0, 100]}
-              fontSize={10}
-              tickMargin={8}
-              width={40}
-            />
-            <Tooltip
-              content={CustomTooltip}
-            />
-            <Legend 
-              verticalAlign="top"
-              align="right"
-              iconType="plainline"
-              iconSize={20}
-              wrapperStyle={{
-                paddingLeft: '10px',
-                paddingBottom: '20px',
-                fontSize: '11px',
-                opacity: 0.8
-              }}
-              formatter={(value) => (
-                <span style={{ color: 'hsl(var(--foreground))', paddingLeft: '4px' }}>
-                  {value}
-                </span>
-              )}
-            />
-            {/* Risk level backgrounds */}
-            <ReferenceArea
-              yAxisId="right"
-              y1={0}
-              y2={50}
-              fill="#dcfce7"
-              fillOpacity={0.3}
-            />
-            <ReferenceArea
-              yAxisId="right"
-              y1={50}
-              y2={75}
-              fill="#fef9c3"
-              fillOpacity={0.3}
-            />
-            <ReferenceArea
-              yAxisId="right"
-              y1={75}
-              y2={100}
-              fill="#fee2e2"
-              fillOpacity={0.3}
-            />
-            <Line
-              yAxisId="left"
-              type="monotone"
-              dataKey="totalPnL"
-              stroke="rgb(34,197,94)"
-              strokeWidth={2}
-              dot={false}
-              name="Total PnL ($)"
-            />
-            <Line
-              yAxisId="left"
-              type="monotone"
-              dataKey="fundingFees"
-              stroke="rgb(99,102,241)"
-              strokeWidth={2}
-              dot={false}
-              name="Cumulative Funding Fees ($)"
-            />
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="liquidationRisk"
-              stroke="rgb(239,68,68)"
-              strokeWidth={2}
-              dot={false}
-              name="Liquidation Risk (%)"
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      
-      {/* Market Scenarios */}
-      <div className="mt-4">
-        <h4 className="text-sm font-medium mb-2">Market Scenarios:</h4>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {scenarios.map((scenario) => (
-            <button
-              key={scenario.name}
-              className={`p-2 text-xs sm:text-sm rounded-lg border transition-colors
-                ${activeScenario?.name === scenario.name 
-                  ? 'bg-primary text-primary-foreground border-primary' 
-                  : 'hover:bg-muted'
-                }`}
-              onClick={() => setActiveScenario(scenario)}
-              onMouseEnter={() => setHoveredScenario(scenario)}
-              onMouseLeave={() => setHoveredScenario(null)}
-            >
-              <div className="font-medium">{scenario.name}</div>
-              <div className="text-[10px] sm:text-xs text-muted-foreground line-clamp-2">
-                {scenario.description}
-              </div>
-            </button>
-          ))}
+    <div className="grid gap-6">
+      <Card className="p-4 sm:p-6">
+        <div className="space-y-1 sm:space-y-2">
+          <h3 className="text-base sm:text-lg font-semibold">Profit/Loss Over Time</h3>
+          <p className="text-sm text-gray-500">{activeScenario?.description || 'Select a scenario to view projections'}</p>
         </div>
-      </div>
-    </Card>
+        
+        <div className="h-[400px] mt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={data}
+              margin={{
+                top: 5,
+                right: 5,
+                left: 0,
+                bottom: 5,
+              }}
+            >
+              <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+              <XAxis
+                dataKey="day"
+                type="number"
+                domain={[0, 'auto']}
+                tickFormatter={(day) => `${day}d`}
+                fontSize={10}
+                tickMargin={8}
+                minTickGap={30}
+              />
+              <YAxis
+                yAxisId="left"
+                tickFormatter={(value) => `$${Math.abs(value).toLocaleString()}`}
+                fontSize={10}
+                tickMargin={8}
+                width={60}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                tickFormatter={(value) => `${value}%`}
+                domain={[0, 100]}
+                fontSize={10}
+                tickMargin={8}
+                width={40}
+              />
+              <Tooltip
+                content={CustomTooltip}
+              />
+              <Legend 
+                verticalAlign="top"
+                align="right"
+                iconType="plainline"
+                iconSize={20}
+                wrapperStyle={{
+                  paddingLeft: '10px',
+                  paddingBottom: '20px',
+                  fontSize: '11px',
+                  opacity: 0.8
+                }}
+                formatter={(value) => (
+                  <span style={{ color: 'hsl(var(--foreground))', paddingLeft: '4px' }}>
+                    {value}
+                  </span>
+                )}
+              />
+              {/* Risk level backgrounds */}
+              <ReferenceArea
+                yAxisId="right"
+                y1={0}
+                y2={50}
+                fill="#dcfce7"
+                fillOpacity={0.3}
+              />
+              <ReferenceArea
+                yAxisId="right"
+                y1={50}
+                y2={75}
+                fill="#fef9c3"
+                fillOpacity={0.3}
+              />
+              <ReferenceArea
+                yAxisId="right"
+                y1={75}
+                y2={100}
+                fill="#fee2e2"
+                fillOpacity={0.3}
+              />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="totalPnL"
+                stroke="rgb(34,197,94)"
+                strokeWidth={2}
+                dot={false}
+                name="Total PnL ($)"
+              />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="fundingFees"
+                stroke="rgb(99,102,241)"
+                strokeWidth={2}
+                dot={false}
+                name="Cumulative Funding Fees ($)"
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="liquidationRisk"
+                stroke="rgb(239,68,68)"
+                strokeWidth={2}
+                dot={false}
+                name="Liquidation Risk (%)"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Market Scenarios */}
+        <div className="mt-6">
+          <h4 className="text-sm font-medium mb-2">Market Scenarios:</h4>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {scenarios.map((scenario) => (
+              <button
+                key={scenario.name}
+                className={`p-2 text-xs sm:text-sm rounded-lg border transition-colors
+                  ${activeScenario?.name === scenario.name 
+                    ? 'bg-primary text-primary-foreground border-primary' 
+                    : 'hover:bg-muted'
+                  }`}
+                onClick={() => setActiveScenario(scenario)}
+                onMouseEnter={() => setHoveredScenario(scenario)}
+                onMouseLeave={() => setHoveredScenario(null)}
+              >
+                <div className="font-medium">{scenario.name}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground line-clamp-2">
+                  {scenario.description}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {/* Recommendations Container */}
+      {data.length > 0 && (
+        <RecommendationsContainer
+          params={params}
+          currentPnL={data[data.length - 1].totalPnL}
+          liquidationRisk={data[data.length - 1].liquidationRisk}
+          effectiveMargin={data[data.length - 1].effectiveMargin}
+          selectedScenario={activeScenario?.name || 'Linear'}
+        />
+      )}
+    </div>
   );
 });
