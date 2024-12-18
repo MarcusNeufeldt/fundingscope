@@ -1,4 +1,4 @@
-# Crypto Funding Fee Analyzer 📊
+# FundingScope 📊
 
 A powerful analysis tool for crypto perpetual futures trading that helps you understand and optimize the impact of funding fees on your positions. Make informed decisions about leverage vs. spot trading across different market scenarios.
 
